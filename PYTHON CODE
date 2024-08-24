@@ -1,0 +1,150 @@
+import requests
+import plotly.graph_objects as go
+import tkinter as tk
+from tkinter import ttk
+from PIL import Image, ImageTk
+
+def display_message(message):
+    result_text.set(message)
+
+def get_crypto_data(): #getting crypto data from coingecko website
+    coin_name = coin_name_var.get()
+    price_units = price_units_var.get()
+
+    if not coin_name:
+        display_message("Please select the currency.")
+        return
+
+    if price_units not in ('USD', 'Rupees'):
+        display_message("Select USD or Rupees.")
+        return
+
+    display_message("Fetching data...")  # Display loading message
+
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_name}" #enter the url here
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for unsuccessful HTTP requests
+        data = response.json()
+
+        name = data['name']
+        current_price = 0  # Initialize with a default value
+
+        if price_units == 'USD':
+            current_price = data['market_data']['current_price']['usd']
+            volume_24h = data['market_data']['total_volume']['usd']
+        elif price_units == 'Rupees':
+            current_price = data['market_data']['current_price']['inr']
+            volume_24h = data['market_data']['total_volume']['inr']
+
+        circulating_supply = data['market_data']['circulating_supply']
+
+        display_message(f"Name: {name}\nCurrent Price: {current_price} {price_units}\nVolume (last 24 hours): {volume_24h} {price_units}\nCirculating Supply: {circulating_supply}")
+
+    except requests.exceptions.RequestException as e:
+        display_message(f"Error fetching data: {e}")
+
+def get_historical_data():#getting historical data from coingecko
+    coin_name = coin_name_var.get()
+    price_units = price_units_var.get()
+
+    if not coin_name:
+        display_message("Please select the currency.")
+        return
+
+    if price_units not in ('USD', 'Rupees'):
+        display_message("Select USD or Rupees.")
+        return
+
+    display_message("Fetching historical data...")  # Display loading message
+
+    try:
+        # Ensure that vs_currency is set correctly based on the user's selection
+        vs_currency = 'usd' if price_units == 'USD' else 'inr'
+
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_name}/market_chart"
+        params = {'vs_currency': vs_currency, 'days': '7'}
+        response = requests.get(url, params=params)
+        response.raise_for_status()  # Raise an error for unsuccessful HTTP requests
+        data = response.json()
+
+        # Extract data for the candlestick chart
+        dates = [item[0] for item in data['prices']]
+        prices = [item[1] for item in data['prices']]
+
+        fig = go.Figure(data=[go.Candlestick(x=dates,
+                    open=prices,
+                    high=prices,
+                    low=prices,
+                    close=prices)])
+
+        fig.update_layout(
+            title=f'{coin_name} Candlestick Chart (last 7 days)',
+            xaxis_title='Time',
+            yaxis_title=f'Price ({price_units})',  # Update y-axis title to show selected currency
+        )
+
+        fig.show()
+
+    except requests.exceptions.HTTPError as err:
+        display_message(f"HTTP error fetching historical data: {err}")
+        print(response.content)  # Print the response content for debugging
+    except requests.exceptions.RequestException as e:
+        display_message(f"Error fetching historical data: {e}")
+
+root = tk.Tk()
+root.title("Crypto Data Viewer")
+root.geometry("800x600")  # Increase the size of the user interface
+
+# Load your image
+background_image = Image.open(r'C:\Users\VIVEK VARDHAN\Desktop\image2.webp')  # Replace with image file path
+background_photo = ImageTk.PhotoImage(background_image)
+
+# Set the background
+background_label = tk.Label(root, image=background_photo)
+background_label.place(relwidth=1, relheight=1)
+
+# Keep a reference to the PhotoImage instance
+root.background_photo = background_photo
+
+# Increase the font size for labels and text
+font_size = ("Helvetica", 16)
+
+# Create a label for coin name
+coin_name_label = ttk.Label(root, text="Choose a coin:", font=font_size, background='sky blue')
+coin_name_label.grid(row=0, column=0, pady=10, padx=10, sticky="w")
+
+# Create a dropdown menu for selecting the coin
+coin_name_var = tk.StringVar()
+coin_name_dropdown = ttk.Combobox(root,text='select a coin', textvariable=coin_name_var, values=["bitcoin", "ethereum", "dogecoin", "binancecoin", "ripple"], font=font_size)
+coin_name_dropdown.grid(row=0, column=1, pady=10, padx=10, sticky="w")
+
+# Create a label for price units
+price_units_label = ttk.Label(root, text="Choose price units:", font=font_size, background='sky blue')
+price_units_label.grid(row=1, column=0, pady=10, padx=10, sticky="w")
+
+# Create a radio button for selecting price units
+price_units_var = tk.StringVar()
+price_units_style = ttk.Style()
+price_units_style.configure('My.TRadiobutton', font=font_size)  # Change the text color to black
+usd_radio = ttk.Radiobutton(root, text="USD", variable=price_units_var, value="USD", style='My.TRadiobutton')
+inr_radio = ttk.Radiobutton(root, text="Rupees", variable=price_units_var, value="Rupees", style='My.TRadiobutton')
+
+# Grid the radio buttons with adjusted sticky options
+usd_radio.grid(row=1, column=1, pady=10, padx=10, sticky="w")
+inr_radio.grid(row=2, column=1, pady=10, padx=10, sticky="w")  # Changed sticky from "w" to "e"
+
+# Create a button to fetch crypto data
+fetch_button = ttk.Button(root, text="Fetch Data", command=get_crypto_data, style="My.TButton")
+fetch_button.grid(row=3, column=0, columnspan=5, pady=10)
+
+# Create a button to display historical data
+historical_data_button = ttk.Button(root, text="Show Historical Data", command=get_historical_data, style="My.TButton")
+historical_data_button.grid(row=4, column=0, columnspan=5, pady=10)
+
+# Create a label for displaying the result
+result_text = tk.StringVar()
+result_label = ttk.Label(root, textvariable=result_text, font=font_size, wraplength=700, justify="left", background=root.cget('bg'))
+result_label.grid(row=5, column=0, columnspan=3, pady=10, padx=10, sticky="w")
+
+root.mainloop()
